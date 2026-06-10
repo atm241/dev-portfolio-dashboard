@@ -1,0 +1,145 @@
+import { useQuery } from '@tanstack/react-query';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { api } from '../lib/api';
+import { Card, ErrorNote, Spinner, Stat, timeAgo } from '../components/ui';
+
+const LC_COLORS = { easy: '#22c55e', medium: '#eab308', hard: '#ef4444' };
+
+export default function Dashboard() {
+  const profile = useQuery({ queryKey: ['gh-profile'], queryFn: api.githubProfile });
+  const repos = useQuery({ queryKey: ['gh-repos'], queryFn: api.githubRepos });
+  const activity = useQuery({ queryKey: ['gh-activity'], queryFn: api.githubActivity });
+  const leetcode = useQuery({ queryKey: ['leetcode'], queryFn: api.leetcode });
+  // Narrow the discriminated union once; TS can't keep the narrowing inside JSX closures.
+  const lc = leetcode.data?.found ? leetcode.data : null;
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card title="GitHub Profile">
+        {profile.isPending && <Spinner />}
+        {profile.error && <ErrorNote message={profile.error.message} />}
+        {profile.data && (
+          <div>
+            <div className="flex items-center gap-4">
+              <img src={profile.data.avatar_url} alt="" className="h-16 w-16 rounded-full" />
+              <div>
+                <a href={profile.data.html_url} target="_blank" rel="noreferrer" className="text-lg font-semibold hover:text-accent">
+                  {profile.data.name ?? profile.data.login}
+                </a>
+                <p className="text-sm text-ink-dim">@{profile.data.login}</p>
+                {profile.data.bio && <p className="mt-1 text-sm text-ink-dim">{profile.data.bio}</p>}
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <Stat label="Public repos" value={profile.data.public_repos} />
+              <Stat label="Followers" value={profile.data.followers} />
+              <Stat label="On GitHub since" value={new Date(profile.data.created_at).getFullYear()} />
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card title="LeetCode Progress">
+        {leetcode.isPending && <Spinner />}
+        {leetcode.error && <ErrorNote message={leetcode.error.message} />}
+        {leetcode.data && !leetcode.data.found && (
+          <ErrorNote message={`LeetCode user "${leetcode.data.username}" not found — set LEETCODE_USERNAME in .env`} />
+        )}
+        {lc && (
+          <div className="flex items-center gap-6">
+            <div className="h-36 w-36 shrink-0">
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={(['easy', 'medium', 'hard'] as const).map((d) => ({
+                      name: d,
+                      value: lc.solved[d].solved,
+                    }))}
+                    dataKey="value"
+                    innerRadius={42}
+                    outerRadius={62}
+                    strokeWidth={0}
+                  >
+                    {(['easy', 'medium', 'hard'] as const).map((d) => (
+                      <Cell key={d} fill={LC_COLORS[d]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: '#1a212b', border: '1px solid #2a3442' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="grow space-y-2">
+              <p className="text-2xl font-bold">
+                {lc.solved.all.solved}
+                <span className="text-sm font-normal text-ink-dim"> / {lc.solved.all.total} solved</span>
+              </p>
+              {(['easy', 'medium', 'hard'] as const).map((d) => (
+                <div key={d} className="flex items-center gap-2 text-sm">
+                  <span className="w-16 capitalize" style={{ color: LC_COLORS[d] }}>{d}</span>
+                  <div className="h-1.5 grow rounded bg-surface">
+                    <div
+                      className="h-1.5 rounded"
+                      style={{
+                        background: LC_COLORS[d],
+                        width: `${(lc.solved[d].solved / Math.max(1, lc.solved[d].total)) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="w-20 text-right text-ink-dim">
+                    {lc.solved[d].solved}/{lc.solved[d].total}
+                  </span>
+                </div>
+              ))}
+              <p className="text-xs text-ink-dim">Global ranking #{lc.ranking.toLocaleString()}</p>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card title="Pinned Repositories">
+        {repos.isPending && <Spinner />}
+        {repos.error && <ErrorNote message={repos.error.message} />}
+        {repos.data && (
+          <ul className="space-y-3">
+            {repos.data.repos.slice(0, 6).map((r) => (
+              <li key={r.name} className="rounded-lg bg-surface p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <a href={r.url} target="_blank" rel="noreferrer" className="font-medium hover:text-accent">
+                    {r.name}
+                  </a>
+                  <span className="shrink-0 text-xs text-ink-dim">
+                    {r.language && <span className="mr-2">{r.language}</span>}
+                    ★ {r.stars} · updated {timeAgo(r.pushedAt)}
+                  </span>
+                </div>
+                {r.description && <p className="mt-1 text-sm text-ink-dim">{r.description}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card title="Recent Activity">
+        {activity.isPending && <Spinner />}
+        {activity.error && <ErrorNote message={activity.error.message} />}
+        {activity.data && activity.data.length === 0 && (
+          <p className="text-sm text-ink-dim">No recent public activity.</p>
+        )}
+        {activity.data && (
+          <ul className="space-y-2">
+            {activity.data.slice(0, 10).map((e, i) => (
+              <li key={i} className="flex items-baseline gap-3 text-sm">
+                <span className="shrink-0 text-xs text-ink-dim">{timeAgo(e.date)}</span>
+                <span>
+                  <span className="font-medium">{e.summary}</span>
+                  <span className="text-ink-dim"> in {e.repo}</span>
+                  {e.detail && <span className="block truncate text-xs text-ink-dim">“{e.detail}”</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
+  );
+}
