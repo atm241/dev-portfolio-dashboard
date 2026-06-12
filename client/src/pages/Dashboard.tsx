@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { api } from '../lib/api';
+import { ContributionHeatmap, HeatmapLegend } from '../components/ContributionHeatmap';
 import { Card, ErrorNote, Spinner, Stat, timeAgo } from '../components/ui';
 
 const LC_COLORS = { easy: '#22c55e', medium: '#eab308', hard: '#ef4444' };
@@ -10,11 +11,33 @@ export default function Dashboard() {
   const repos = useQuery({ queryKey: ['gh-repos'], queryFn: api.githubRepos });
   const activity = useQuery({ queryKey: ['gh-activity'], queryFn: api.githubActivity });
   const leetcode = useQuery({ queryKey: ['leetcode'], queryFn: api.leetcode });
+  const contributions = useQuery({ queryKey: ['gh-contributions'], queryFn: api.githubContributions });
   // Narrow the discriminated union once; TS can't keep the narrowing inside JSX closures.
   const lc = leetcode.data?.found ? leetcode.data : null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      <div className="lg:col-span-2">
+        <Card
+          title={
+            contributions.data?.available
+              ? `${contributions.data.total.toLocaleString()} contributions in the last year`
+              : 'Contributions'
+          }
+          action={contributions.data?.available ? <HeatmapLegend /> : undefined}
+        >
+          {contributions.isPending && <Spinner />}
+          {contributions.error && <ErrorNote message={contributions.error.message} />}
+          {contributions.data && !contributions.data.available && (
+            <p className="text-sm text-ink-dim">
+              Set <code className="rounded bg-surface px-1.5 py-0.5">GITHUB_TOKEN</code> in .env to enable the
+              contribution heatmap (no scopes needed for public data).
+            </p>
+          )}
+          {contributions.data?.available && <ContributionHeatmap weeks={contributions.data.weeks} />}
+        </Card>
+      </div>
+
       <Card title="GitHub Profile">
         {profile.isPending && <Spinner />}
         {profile.error && <ErrorNote message={profile.error.message} />}

@@ -88,6 +88,67 @@ export async function getRepos() {
   });
 }
 
+/**
+ * Contribution calendar (the green-squares heatmap). Only available through
+ * the GraphQL API, which requires a token — without one we tell the client
+ * to render a setup hint instead.
+ */
+export async function getContributions() {
+  if (!config.githubToken) {
+    return { available: false as const };
+  }
+  return apiCache.getOrFetch('gh:contributions', async () => {
+    const res = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.githubToken}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'portfolio-dashboard',
+      },
+      body: JSON.stringify({
+        query: `query($login: String!) {
+          user(login: $login) {
+            contributionsCollection {
+              contributionCalendar {
+                totalContributions
+                weeks { contributionDays { date contributionCount } }
+              }
+            }
+          }
+        }`,
+        variables: { login: config.githubUsername },
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`GitHub GraphQL failed: ${res.status} ${res.statusText}`);
+    }
+    const json = (await res.json()) as {
+      data?: {
+        user?: {
+          contributionsCollection: {
+            contributionCalendar: {
+              totalContributions: number;
+              weeks: { contributionDays: { date: string; contributionCount: number }[] }[];
+            };
+          };
+        };
+      };
+      errors?: { message: string }[];
+    };
+    const calendar = json.data?.user?.contributionsCollection.contributionCalendar;
+    if (!calendar) {
+      throw new Error(json.errors?.[0]?.message ?? 'GitHub GraphQL returned no calendar');
+    }
+    return {
+      available: true as const,
+      total: calendar.totalContributions,
+      weeks: calendar.weeks.map((w) =>
+        w.contributionDays.map((d) => ({ date: d.date, count: d.contributionCount }))
+      ),
+    };
+  });
+}
+
 /** Recent public activity, flattened into a human-readable feed. */
 export async function getActivity() {
   return apiCache.getOrFetch('gh:activity', async () => {

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getActivity, getProfile, getRepos } from '../services/github.js';
+import { getActivity, getContributions, getProfile, getRepos } from '../services/github.js';
 import { getLeetCodeStats } from '../services/leetcode.js';
 
 export const statsRouter = Router();
@@ -18,4 +18,5 @@ const handle = (fetcher: () => Promise<unknown>) => {
 statsRouter.get('/github/profile', handle(getProfile));
 statsRouter.get('/github/repos', handle(getRepos));
 statsRouter.get('/github/activity', handle(getActivity));
+statsRouter.get('/github/contributions', handle(getContributions));
 statsRouter.get('/leetcode', handle(getLeetCodeStats));

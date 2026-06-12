@@ -60,6 +60,10 @@ export type LeetCodeStats =
       recent: { title: string; url: string; timestamp: number }[];
     };
 
+export type Contributions =
+  | { available: false }
+  | { available: true; total: number; weeks: { date: string; count: number }[][] };
+
 export type JobStatus = 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'ghosted';
 
 export interface JobApplication {
@@ -82,6 +86,7 @@ export const api = {
   githubProfile: () => request<GitHubProfile>('/api/stats/github/profile'),
   githubRepos: () => request<RepoSummary>('/api/stats/github/repos'),
   githubActivity: () => request<ActivityItem[]>('/api/stats/github/activity'),
+  githubContributions: () => request<Contributions>('/api/stats/github/contributions'),
   leetcode: () => request<LeetCodeStats>('/api/stats/leetcode'),
   me: () => request<{ authenticated: boolean }>('/api/auth/me'),
   login: (password: string) =>
