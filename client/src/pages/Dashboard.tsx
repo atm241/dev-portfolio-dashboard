@@ -4,6 +4,29 @@ import { api } from '../lib/api';
 import { ContributionHeatmap, HeatmapLegend } from '../components/ContributionHeatmap';
 import { Card, ErrorNote, Spinner, Stat, timeAgo } from '../components/ui';
 
+function computeStreaks(weeks: { date: string; count: number }[][]) {
+  const days = weeks.flat().sort((a, b) => a.date.localeCompare(b.date));
+
+  let longestStreak = 0;
+  let run = 0;
+  for (const day of days) {
+    if (day.count > 0) { run++; longestStreak = Math.max(longestStreak, run); }
+    else { run = 0; }
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const reversed = [...days].reverse();
+  // If today has no contributions yet, allow the streak to still be "alive" from yesterday.
+  const startIdx = reversed[0]?.date === today && reversed[0].count === 0 ? 1 : 0;
+  let currentStreak = 0;
+  for (let i = startIdx; i < reversed.length; i++) {
+    if (reversed[i].count > 0) currentStreak++;
+    else break;
+  }
+
+  return { currentStreak, longestStreak };
+}
+
 const LC_COLORS = { easy: '#22c55e', medium: '#eab308', hard: '#ef4444' };
 
 export default function Dashboard() {
@@ -12,8 +35,9 @@ export default function Dashboard() {
   const activity = useQuery({ queryKey: ['gh-activity'], queryFn: api.githubActivity });
   const leetcode = useQuery({ queryKey: ['leetcode'], queryFn: api.leetcode });
   const contributions = useQuery({ queryKey: ['gh-contributions'], queryFn: api.githubContributions });
-  // Narrow the discriminated union once; TS can't keep the narrowing inside JSX closures.
   const lc = leetcode.data?.found ? leetcode.data : null;
+  const streaks =
+    contributions.data?.available ? computeStreaks(contributions.data.weeks) : null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -34,7 +58,17 @@ export default function Dashboard() {
               contribution heatmap (no scopes needed for public data).
             </p>
           )}
-          {contributions.data?.available && <ContributionHeatmap weeks={contributions.data.weeks} />}
+          {contributions.data?.available && (
+            <>
+              <ContributionHeatmap weeks={contributions.data.weeks} />
+              {streaks && (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Stat label="Current streak" value={`${streaks.currentStreak}d`} />
+                  <Stat label="Longest streak" value={`${streaks.longestStreak}d`} />
+                </div>
+              )}
+            </>
+          )}
         </Card>
       </div>
 
