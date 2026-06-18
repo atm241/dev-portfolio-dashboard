@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { api } from '../lib/api';
 import { ContributionHeatmap, HeatmapLegend } from '../components/ContributionHeatmap';
+import { RecommendedProblems } from '../components/RecommendedProblems';
+import { slugFromUrl } from '../lib/recommendedProblems';
 import { Card, ErrorNote, Spinner, Stat, timeAgo } from '../components/ui';
 
 function computeStreaks(weeks: { date: string; count: number }[][]) {
@@ -38,6 +40,10 @@ export default function Dashboard() {
   const lc = leetcode.data?.found ? leetcode.data : null;
   const streaks =
     contributions.data?.available ? computeStreaks(contributions.data.weeks) : null;
+  // Recent accepted submissions let us tick off problems already solved.
+  const solvedSlugs = new Set(
+    (lc?.recent ?? []).map((s) => slugFromUrl(s.url)).filter((s): s is string => s !== null)
+  );
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -152,6 +158,15 @@ export default function Dashboard() {
           </div>
         )}
       </Card>
+
+      <div className="lg:col-span-2">
+        <Card
+          title="Recommended Problems"
+          action={<span className="text-xs text-ink-dim">Blind 75 starter set, by pattern</span>}
+        >
+          <RecommendedProblems solvedSlugs={solvedSlugs} />
+        </Card>
+      </div>
 
       <Card title="Pinned Repositories">
         {repos.isPending && <Spinner />}
